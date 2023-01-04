@@ -456,6 +456,12 @@ log("MPI Size: " + str(size))
 log("Current time: " + str(datetime.datetime.now()))
 log("Script invoked with the following command-line arguments:")
 log(script_parameters_message)
+log("")
+log(80*"=")
+log("Parameters used in this script:")
+log(80*"=")
+for arg, value in vars(args).items():
+   log((str(arg) + " = " + str(value)))
 log(80*"=")
 
 # set up global timer
@@ -504,6 +510,7 @@ nsd = mesh.geometry().dim()
 n = FacetNormal(mesh)
 I = Identity(nsd)
 h = CellDiameter(mesh)
+h_min_cell = MinCellEdgeLength(mesh)
 
 # import subdomains
 log("Importing subdomains.")
@@ -785,32 +792,30 @@ u_func = Function(V_m)
 # helper zero vector
 zero = Constant(nsd*(0,))
 
-# BCs for the mesh motion subproblem:
-bcs_m = [
-    DirichletBC(V_m, u_func, solid_interior_facets, FLAG["solid"]),
-    DirichletBC(V_m, u_func, boundaries, FLAG["interface"]),
-    DirichletBC(V_m, zero, stent_intersection, FLAG["stent_intersection"]),
-    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["solid_inflow"]),
-    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["solid_outflow"]),
-    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_inflow"]),
-    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_outflow"]),
-    ]
-
 # Fluid-solid BCs
 bcs_fs = [
     DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, 
                 FLAG["solid_inflow"]),
-    DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, 
-                FLAG["solid_outflow"]),
+    # DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, 
+    #             FLAG["solid_outflow"]),
     DirichletBC(V_fs.sub(0), zero, stent_intersection, 
                 FLAG["stent_intersection"]),
     DirichletBC(V_fs.sub(1), Constant(0), solid_interior_facets, 
                 FLAG["solid"]),
     ]
 
+# BCs for the mesh motion subproblem:
+bcs_m = [
+    DirichletBC(V_m, u_func, solid_interior_facets, FLAG["solid"]),
+    DirichletBC(V_m, u_func, boundaries, FLAG["interface"]),
+    DirichletBC(V_m, zero, stent_intersection, FLAG["stent_intersection"]),
+    DirichletBC(V_m, u_func, boundaries, FLAG["solid_inflow"]),
+    DirichletBC(V_m, u_func, boundaries, FLAG["solid_outflow"]),
+    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_inflow"]),
+    # DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_outflow"]),
+    ]
+
 if FREEZE_SOLID:
-    bcs_m.append(DirichletBC(V_m, zero, solid_interior_facets, FLAG["solid"]))
-    bcs_m.append(DirichletBC(V_m, zero, boundaries, FLAG["interface"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, solid_interior_facets,
                               FLAG["solid"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, boundaries,
@@ -819,27 +824,32 @@ if FREEZE_SOLID:
                               FLAG["solid_inflow"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, boundaries, 
                               FLAG["interface"]))
-
-
-
-###############################################################
-#### Mesh Motion Subproblem ###################################
-###############################################################
-mesh_model = sm.JacobianStiffening(power=Constant(3))
-res_m = mesh_model.interiorResidual(uhat_alpha,duhat,dx=dy)
-Dres_m = derivative(res_m, uhat)
+    bcs_m.append(DirichletBC(V_m, zero, solid_interior_facets, FLAG["solid"]))
+    bcs_m.append(DirichletBC(V_m, zero, boundaries, FLAG["interface"]))
 
 ###############################################################
 #### Solid Domain Subproblem ##################################
 ###############################################################
 
 dX = dy(FLAG["solid"])
+alpha = Constant(1e3)
+beta = (alpha*SOLID["E"]) / (h_min_cell*(1-SOLID["nu"]**2))
 solid_kappa = sm.bulkModulus(SOLID["E"],SOLID["nu"])
 solid_mu = sm.shearModulus(SOLID["E"],SOLID["nu"])
+
 solid_model = sm.NeoHookean(rho=SOLID['rho'], kappa=solid_kappa, mu=solid_mu)
 res_s = solid_model.interiorResidual(u_s_alpha,dv,dx=dX)
 res_s += solid_model.accelerationResidual(dv_ds,dv,dx=dX)
 res_s += solid_model.massDampingResidual(v_alpha,SOLID["c"],dv,dx=dX)
+# res_s += solid_model.penaltyWeakBCResidual(u=dot(u_s_alpha,n)*n,
+#                                            v=dot(dv,n)*n,
+#                                            g=zero,beta=beta,
+#                                            ds=ds(FLAG["solid_inflow"]))
+res_s += solid_model.penaltyWeakBCResidual(u=dot(u_s_alpha,n)*n,
+                                           v=dot(dv,n)*n,
+                                           g=zero,beta=beta,
+                                           ds=ds(FLAG["solid_outflow"]))
+
 
 ###############################################################
 #### Fluid Subproblem #########################################
@@ -971,6 +981,27 @@ dWmass = LEAFLET["rho"]*LEAFLET["h"]*inner(yddot,z)*spline.dx
 dWint = (1.0/timeInt_sh.ALPHA_F)*derivative(Wint,y_hom,z_hom)
 res_sh = dWint + dWmass
 
+###############################################################
+#### Mesh Motion Subproblem ###################################
+###############################################################
+J_M = abs(det(ufl.Jacobian(mesh)))
+power_J_M = Constant(1.0)
+mesh_model = sm.JacobianStiffening(power_J_M=power_J_M)
+fictitious_E = Constant(1.0)
+fictitious_nu = Constant(0.3)
+alpha = Constant(1e3)
+beta = alpha*(fictitious_E/((J_M)**power_J_M)) / (h_min_cell*(1-fictitious_nu**2))
+
+res_m = mesh_model.interiorResidual(uhat_alpha,duhat,J_M,dx=dy)
+# res_m += mesh_model.penaltyWeakBCResidual(u=dot(uhat_alpha,n)*n,
+#                                           v=dot(duhat,n)*n,
+#                                           g=zero,beta=beta,
+#                                           ds=ds(FLAG["fluid_inflow"]))
+res_m += mesh_model.penaltyWeakBCResidual(u=dot(uhat_alpha,n)*n,
+                                          v=dot(duhat,n)*n,
+                                          g=zero,beta=beta,
+                                          ds=ds(FLAG["fluid_outflow"]))
+Dres_m = derivative(res_m, uhat)
 
 
 ###############################################################
