@@ -140,6 +140,9 @@ p.add_argument("--subdomains-filename",dest="SUBDOMAINS_FILENAME",
 p.add_argument("--boundaries-filename",dest="BOUNDARIES_FILENAME",
                default="aorta_boundaries.xdmf",
                help="Filename of the fluid-solid boundary markers.")
+p.add_argument("--facets-filename",dest="SOLID_INTERIOR_FACETS_FILENAME",
+               default="solid_interior_facets.xdmf",
+               help="Filename of the fluid-solid boundary markers.")
 p.add_argument("--markers-string",dest="MARKERS_STRING",default="markers",
                help="Mesh physical group marker string.")
 p.add_argument("--polynomial-degree",dest="POLYNOMIAL_DEGREE",
@@ -391,6 +394,7 @@ RHO_INFINITY = Constant(args.RHO_INFINITY)
 
 FILEPATH_IN_MESH = args.MESH_FOLDER + args.MESH_FILENAME
 FILEPATH_IN_SUBDOMAINS = args.MESH_FOLDER + args.SUBDOMAINS_FILENAME
+FILEPATH_IN_SOLID_INTERIOR_FACETS = args.MESH_FOLDER + args.SOLID_INTERIOR_FACETS_FILENAME
 FILEPATH_IN_BOUNDARIES = args.MESH_FOLDER + args.BOUNDARIES_FILENAME
 MARKER = args.MARKERS_STRING
 BKG_POLYNOMIAL_DEGREE = args.POLYNOMIAL_DEGREE
@@ -554,30 +558,49 @@ with Timer("HV 02: import boundaries"):
         f.read(mvc, MARKER)
 boundaries = cpp.mesh.MeshFunctionSizet(mesh, mvc)
 
+# import solid_interior_facets
+log("Importing solid_interior_facets.")
+mvc = MeshValueCollection('size_t', mesh, nsd-1)
+with Timer("HV 04: import solid_interior_facets"):
+    with XDMFFile(comm, FILEPATH_IN_SOLID_INTERIOR_FACETS) as f:
+        f.read(mvc, MARKER)
+solid_interior_facets = cpp.mesh.MeshFunctionSizet(mesh, mvc)
+
 # initialize mesh connectivities
 log("Building mesh connectivities.")
 with Timer("HV 03: build mesh connectivities"):
     mesh.init(nsd, nsd-1)
     mesh.init(nsd-3, nsd-1)
 
-# initialize and fill a facet function for the solid region, leaving off 
-# anything touching the interface facets
-log("Building solid-region interior MeshFunction.")
-solid_interior_facets = MeshFunction("size_t", mesh, nsd-1)
-solid_interior_facets.set_all(FLAG['solid'])
-with Timer("HV 04: build interior solid markers"):
-    for facet in facets(mesh):
-        marker = False
-        for cell in cells(facet):
-            marker = marker or subdomains[cell]==FLAG["fluid"]
-        if (not marker):
-            for vertex in vertices(facet):
-                vertex_facets = vertex.entities(nsd-1)
-                for vertex_facet in vertex_facets:
-                    marker = marker or \
-                        (boundaries[vertex_facet]==FLAG["interface"])
-        if marker:
-            solid_interior_facets[facet] = FLAG["none"]
+# # initialize and fill a facet function for the solid region, leaving off 
+# # anything touching the interface facets (Run on one core)
+# log("Building solid-region interior MeshFunction.")
+# solid_interior_facets = MeshFunction("size_t", mesh, nsd-1)
+# solid_interior_facets.set_all(FLAG['none'])
+# with Timer("HV 04: build interior solid markers"):
+#     for cell in cells(mesh):
+#         if (subdomains[cell]==FLAG["solid"]):
+#             for facet in facets(cell):
+#                 solid_interior_facets[facet] = FLAG["solid"]
+#     for cell in cells(mesh):
+#         if (subdomains[cell]==FLAG["solid"]):
+#             for facet in facets(cell):
+#                 if (boundaries[facet]==FLAG["interface"]):
+#                     for vertex in vertices(facet):
+#                         for facet in facets(vertex):
+#                             solid_interior_facets[facet] = FLAG["none"]
+
+
+# ################################################################################
+# ################################################################################
+# ################################################################################
+# log("Saving solid_interior_facets to file.")
+# solid_interior_facets.rename(MARKER,MARKER)
+# XDMFFile(comm,"./aorta_output/solid_interior_facets.xdmf").write(solid_interior_facets)
+# ################################################################################
+# ################################################################################
+# ################################################################################
+
 
 # Set up integration measures, with flags to integrate over
 # subsets of the domain.
