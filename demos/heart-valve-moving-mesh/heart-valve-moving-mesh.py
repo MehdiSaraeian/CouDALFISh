@@ -45,11 +45,12 @@ DEFAULT_LEAFLET_BC_EDGES = [[0,0],[0,1],[1,1]]
 
 # general arguments
 p = parser.add_argument_group("general")
-p.add_argument("--results-folder",dest="RESULTS_FOLDER",default="./results/",
+p.add_argument("--results-folder",dest="RESULTS_FOLDER",
+               default="./results/",
                help="Folder in which the result files are written.")
 p.add_argument("--restarts-folder",dest="RESTARTS_FOLDER",
                default="./restarts/",
-               help="Folder in which the restart files are written.")   
+               help="Folder in which the restart files are written.")
 p.add_argument("--no-use-tsfc",dest="USE_TSFC",
                default=True, action='store_false',
                help='Use UFLACS instead of TSFC for a form compiler.')
@@ -76,7 +77,7 @@ p.add_argument("--vis-skip-shell",dest="VIS_SKIP_SHELL",
 p.add_argument("--compute-fluid-stats-skip",dest="WRITE_FLUID_STATS_SKIP",
                default=10, type=int,
                help='Compute fluid stats every WRITE_FLUID_STATS_SKIP \
-                   steps.')                    
+                   steps.')
 p.add_argument("--no-write-restarts",dest="WRITE_RESTARTS",
                default=True, action='store_false',
                help='Write the simulation restart files.')
@@ -98,32 +99,37 @@ p.add_argument("--use-shell-intersections",dest="USE_SHELL_INTERSECTIONS",
                help='Use shell intersection file.')
 p.add_argument("--outfile-fluid-solid-mesh",dest="FILE_FSM",
                default="fluid-solid-mesh-results.xdmf",
-               help="The name of the fluid/solid/mesh results file.") 
+               help="The name of the fluid/solid/mesh results file.")
 p.add_argument("--outfile-shell-results",dest="FILE_SHELL_DISP",
                default="shell-results.xdmf",
-               help="The name of the shell displacemnt results file.") 
+               help="The name of the shell displacemnt results file.")
 p.add_argument("--outfile-qoi-data",dest="FILE_QOI_DATA",
                default="qoi-data.csv",
-               help="The name of the quantity of interest (QOI) csv file.") 
+               help="The name of the quantity of interest (QOI) csv file.")
 
 # time-stepping arguments
 p = parser.add_argument_group("time stepping")
-p.add_argument("--start-time",dest="START_TIME",type=float,default=0.6,
+p.add_argument("--start-time",dest="START_TIME",
+               type=float,default=0.6,
                help='The start time when not using restart files.')
-p.add_argument("--start-time-step",dest="START_TIME_STEP",type=int,default=1,
+p.add_argument("--start-time-step",dest="START_TIME_STEP",
+               type=int,default=1,
                help='The start time step when not using restart files.')
-p.add_argument("--num-steps",dest="NUM_TIME_STEPS",type=int,default=11200,
+p.add_argument("--num-steps",dest="NUM_TIME_STEPS",
+               type=int,default=11201,
                help='The number of time steps to take.')
-p.add_argument("--delta-t",dest="DT",type=float,default=1e-4,
+p.add_argument("--delta-t",dest="DT",
+               type=float,default=1e-4,
                help='The time step interval.')
-p.add_argument("--rho-infinity",dest="RHO_INFINITY",type=float,default=0.0,
+p.add_argument("--rho-infinity",dest="RHO_INFINITY",
+               type=float,default=0.0,
                help='The high-frequency dissipation for the \
                     Generalized-Alpha time integrator.')
 
 # fluid-solid problem parameters
 p = parser.add_argument_group("fluid-solid problem")
 p.add_argument("--mesh-folder",dest="MESH_FOLDER",
-               default="./mesh-M0/",
+               default="./mesh/",
                help="Folder that contains the fluid-solid mesh and markers.")
 p.add_argument("--mesh-filename",dest="MESH_FILENAME",
                default="aorta_mesh.xdmf",
@@ -154,6 +160,9 @@ p.add_argument("--solid-rho",dest="SOLID_RHO",
 p.add_argument("--solid-c",dest="SOLID_C",
                type=float, default=1e4,
                help='The damping coefficient for the solid material.')
+p.add_argument("--solid-alpha",dest="SOLID_ALPHA",
+               type=float, default=1e3,
+               help='The penalty coeffecient.')
 p.add_argument("--freeze-solid",dest="FREEZE_SOLID",
                action='store_true', default=False,
                help='Freeze the solid problem.')
@@ -194,10 +203,10 @@ p.add_argument("--fluid-c-t",dest="FLUID_C_T",
                help='A fluid stability scaling term.')
 p.add_argument("--ksp-rel-tol",dest="KSP_REL_TOL",
                type=float, default=1e-2,
-               help='The fluid Krylov solver relative tolerance.')    
+               help='The fluid Krylov solver relative tolerance.')
 p.add_argument("--ksp-max-iters",dest="KSP_MAX_ITERS",
                type=int, default=300,
-               help='The fluid Krylov solver maximum iterations.') 
+               help='The fluid Krylov solver maximum iterations.')
 p.add_argument("--log-ksp",dest="LOG_KSP",
                default=False, action='store_true',
                help='Log the progress of the fluid linear solver.')
@@ -297,6 +306,21 @@ p.add_argument("--dal-r",dest="DAL_R",
                type=float, default=1e-5,
                help='The DAL coupling stabilization term.')
 
+# mesh motion subproblem parameters
+p = parser.add_argument_group("mesh motion subproblem")
+p.add_argument("--mesh-E",dest="MESH_E",
+               type=float, default=1.0,
+               help='The fictitious Youngs modulus assigned to the material.')
+p.add_argument("--mesh-nu",dest="MESH_NU",
+               type=float, default=0.3,
+               help='The fictitious Poissons ratio assigned to the material.')
+p.add_argument("--mesh-power",dest="MESH_POWER",
+               type=float, default=1.0,
+               help='The power for the Jacobian stiffening method.')
+p.add_argument("--mesh-alpha",dest="MESH_ALPHA",
+               type=float, default=1e3,
+               help='The penalty coeffecient.')
+
 def safe_filename(f):
     ''' 
     Return a safe filename that is different from any other in the location by
@@ -374,7 +398,8 @@ BKG_POLYNOMIAL_DEGREE = args.POLYNOMIAL_DEGREE
 SOLID = {'E': Constant(args.SOLID_E), 
          'nu': Constant(args.SOLID_NU), 
          'rho': Constant(args.SOLID_RHO),
-         'c': Constant(args.SOLID_C)}
+         'c': Constant(args.SOLID_C),
+         'alpha': Constant(args.SOLID_ALPHA)}
 FREEZE_SOLID = args.FREEZE_SOLID
 FLUID = {'rho': Constant(args.FLUID_RHO), 
          'mu': Constant(args.FLUID_MU)}
@@ -421,8 +446,11 @@ BLOCK_REL_TOL = args.BLOCK_REL_TOL
 BLOCK_NO_ERROR = args.BLOCK_NO_ERROR
 DAL_PENALTY = args.DAL_PENALTY
 DAL_R = args.DAL_R
-
-
+MESH = {'E': Constant(args.MESH_E),
+        'nu': Constant(args.MESH_NU),
+        'power': Constant(args.MESH_POWER),
+        'alpha': Constant(args.MESH_ALPHA),
+        }
 
 # import custom machinery for ALE-FSI computations
 import VarMINT as vrmt                  # fluids
@@ -474,7 +502,6 @@ if USE_TSFC:
     sys.setrecursionlimit(10000)
 
 
-
 ###############################################################
 #### Load Restart Time Step and Value #########################
 ###############################################################
@@ -491,7 +518,6 @@ if restarting:
 else:
     startStep = START_TIME_STEP
     t = START_TIME
-
 
 
 ###############################################################
@@ -644,6 +670,7 @@ contactContext_sh = ShellContactContext(spline,CONTACT["R_SELF"],
                                         CONTACT["R_MAX"],
                                         phiPrime,phiDoublePrime)
 
+
 ###############################################################
 #### Compute stent-solid intersections ########################
 ###############################################################
@@ -704,20 +731,18 @@ if LOG_TIMINGS:
     log("")
 
 
-
 ###############################################################
 #### Elements and Function Spaces #############################
 ###############################################################
 
 # Define function spaces (equal order interpolation):
 cell = mesh.ufl_cell()
-FSM_POLYNOMIAL_DEGREE = 1
-Ve = VectorElement("Lagrange", cell, FSM_POLYNOMIAL_DEGREE)
-Qe = FiniteElement("Lagrange", cell, FSM_POLYNOMIAL_DEGREE)
+Ve = VectorElement("Lagrange", cell, BKG_POLYNOMIAL_DEGREE)
+Qe = FiniteElement("Lagrange", cell, BKG_POLYNOMIAL_DEGREE)
 VQe = MixedElement((Ve,Qe))
 # Mixed function space for velocity and pressure:
 V_fs = FunctionSpace(mesh,VQe)
-V_fs_scalar = FunctionSpace(mesh,"Lagrange",FSM_POLYNOMIAL_DEGREE)
+V_fs_scalar = FunctionSpace(mesh,"Lagrange",BKG_POLYNOMIAL_DEGREE)
 # Function space for mesh displacement field, 
 # which will be solved for separately in a 
 # quasi-direct scheme:
@@ -777,12 +802,11 @@ dv_ds = dv_dr # Only valid in solid
 
 
 # Displacement field used in the solid formulation
-u_s = uhat_old + DT*v_alpha
+u_s = uhat_old + DT*v
 u_s_alpha = x_alpha(timeInt_fs.ALPHA_F,u_s,uhat_old)
 
 # This is used to match u_s to set bc on the mesh motion subproblem
 u_func = Function(V_m)
-
 
 
 ###############################################################
@@ -794,28 +818,26 @@ zero = Constant(nsd*(0,))
 
 # Fluid-solid BCs
 bcs_fs = [
-    DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, 
-                FLAG["solid_inflow"]),
-    # DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, 
-    #             FLAG["solid_outflow"]),
-    DirichletBC(V_fs.sub(0), zero, stent_intersection, 
-                FLAG["stent_intersection"]),
-    DirichletBC(V_fs.sub(1), Constant(0), solid_interior_facets, 
-                FLAG["solid"]),
-    ]
+DirichletBC(V_fs.sub(0).sub(2), Constant(0), boundaries, FLAG["solid_inflow"]),
+# DirichletBC(V_fs.sub(0), zero, boundaries, FLAG["solid_outflow"]),
+DirichletBC(V_fs.sub(0), zero, stent_intersection, FLAG["stent_intersection"]),
+DirichletBC(V_fs.sub(1), Constant(0), solid_interior_facets, FLAG["solid"]),
+]
 
 # BCs for the mesh motion subproblem:
 bcs_m = [
-    DirichletBC(V_m, u_func, solid_interior_facets, FLAG["solid"]),
-    DirichletBC(V_m, u_func, boundaries, FLAG["interface"]),
-    DirichletBC(V_m, zero, stent_intersection, FLAG["stent_intersection"]),
-    DirichletBC(V_m, u_func, boundaries, FLAG["solid_inflow"]),
-    DirichletBC(V_m, u_func, boundaries, FLAG["solid_outflow"]),
-    DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_inflow"]),
-    # DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_outflow"]),
-    ]
+DirichletBC(V_m, u_func, solid_interior_facets, FLAG["solid"]),
+DirichletBC(V_m, u_func, boundaries, FLAG["interface"]),
+DirichletBC(V_m, zero, stent_intersection, FLAG["stent_intersection"]),
+DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["solid_inflow"]),
+DirichletBC(V_m, u_func, boundaries, FLAG["solid_outflow"]),
+DirichletBC(V_m.sub(2), Constant(0), boundaries, FLAG["fluid_inflow"]),
+# DirichletBC(V_m, zero, boundaries, FLAG["fluid_outflow"]),
+]
 
 if FREEZE_SOLID:
+    bcs_m.append(DirichletBC(V_m, zero, solid_interior_facets, FLAG["solid"]))
+    bcs_m.append(DirichletBC(V_m, zero, boundaries, FLAG["interface"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, solid_interior_facets,
                               FLAG["solid"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, boundaries,
@@ -824,16 +846,15 @@ if FREEZE_SOLID:
                               FLAG["solid_inflow"]))
     bcs_fs.append(DirichletBC(V_fs.sub(0), zero, boundaries, 
                               FLAG["interface"]))
-    bcs_m.append(DirichletBC(V_m, zero, solid_interior_facets, FLAG["solid"]))
-    bcs_m.append(DirichletBC(V_m, zero, boundaries, FLAG["interface"]))
+
 
 ###############################################################
 #### Solid Domain Subproblem ##################################
 ###############################################################
 
 dX = dy(FLAG["solid"])
-alpha = Constant(1e3)
-beta = (alpha*SOLID["E"]) / (h_min_cell*(1-SOLID["nu"]**2))
+solid_alpha = SOLID["alpha"]
+beta = (solid_alpha*SOLID["E"]) / (h_min_cell*(1-SOLID["nu"]**2))
 solid_kappa = sm.bulkModulus(SOLID["E"],SOLID["nu"])
 solid_mu = sm.shearModulus(SOLID["E"],SOLID["nu"])
 
@@ -981,18 +1002,23 @@ dWmass = LEAFLET["rho"]*LEAFLET["h"]*inner(yddot,z)*spline.dx
 dWint = (1.0/timeInt_sh.ALPHA_F)*derivative(Wint,y_hom,z_hom)
 res_sh = dWint + dWmass
 
+
 ###############################################################
 #### Mesh Motion Subproblem ###################################
 ###############################################################
-J_M = abs(det(ufl.Jacobian(mesh)))
-power_J_M = Constant(1.0)
-mesh_model = sm.JacobianStiffening(power_J_M=power_J_M)
-fictitious_E = Constant(1.0)
-fictitious_nu = Constant(0.3)
-alpha = Constant(1e3)
-beta = alpha*(fictitious_E/((J_M)**power_J_M)) / (h_min_cell*(1-fictitious_nu**2))
 
-res_m = mesh_model.interiorResidual(uhat_alpha,duhat,J_M,dx=dy)
+J_M = abs(det(ufl.Jacobian(mesh)))
+J_M_vector = project(J_M,FunctionSpace(mesh, "DG", 0)).vector()[:]
+J_M_0 = Constant(min(J_M_vector))
+power = MESH["power"]
+fictitious_E = MESH["E"]
+fictitious_nu = MESH["nu"]
+mesh_alpha = MESH["alpha"]
+beta = mesh_alpha*(fictitious_E/((J_M/J_M_0)**power)) \
+       / (h_min_cell*(1-fictitious_nu**2))
+
+mesh_model = sm.JacobianStiffening(power=Constant(3.0))
+res_m = mesh_model.interiorResidual(uhat_alpha,duhat,dx=dy)
 # res_m += mesh_model.penaltyWeakBCResidual(u=dot(uhat_alpha,n)*n,
 #                                           v=dot(duhat,n)*n,
 #                                           g=zero,beta=beta,
@@ -1039,7 +1065,6 @@ fsiProblem = cfsh.CouDALFISh(mesh, res_fs, timeInt_fs,
                               contactContext_sh=contactContext_sh,
                               fluidLinearSolver=fluidLinearSolver,
                               cutFunc=cutFunc)
-
 
 
 ###############################################################
@@ -1093,8 +1118,6 @@ if (WRITE_FLUID_STATS and rank==0):
 comm.barrier()
 
 
-
-
 ###############################################################
 #### Display Current Timings ##################################
 ###############################################################
@@ -1103,7 +1126,6 @@ if LOG_TIMINGS:
     list_timings(TimingClear.clear,[TimingType.wall])
     log("")
     log("Global time elapsed: " + str(global_timer.elapsed()[0]))
-
 
 
 ###############################################################
