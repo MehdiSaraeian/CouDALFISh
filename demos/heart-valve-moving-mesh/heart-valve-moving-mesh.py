@@ -129,7 +129,7 @@ p.add_argument("--rho-infinity",dest="RHO_INFINITY",
 # fluid-solid problem parameters
 p = parser.add_argument_group("fluid-solid problem")
 p.add_argument("--mesh-folder",dest="MESH_FOLDER",
-               default="./mesh/",
+               default="./aorta/",
                help="Folder that contains the fluid-solid mesh and markers.")
 p.add_argument("--mesh-filename",dest="MESH_FILENAME",
                default="aorta_mesh.xdmf",
@@ -596,7 +596,7 @@ with Timer("HV 03: build mesh connectivities"):
 # ################################################################################
 # log("Saving solid_interior_facets to file.")
 # solid_interior_facets.rename(MARKER,MARKER)
-# XDMFFile(comm,"./aorta_output/solid_interior_facets.xdmf").write(solid_interior_facets)
+# XDMFFile(comm,FILEPATH_IN_SOLID_INTERIOR_FACETS).write(solid_interior_facets)
 # ################################################################################
 # ################################################################################
 # ################################################################################
