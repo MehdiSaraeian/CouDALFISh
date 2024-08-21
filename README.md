@@ -1,5 +1,12 @@
 # CouDALFISh
-**Cou**pling, via **D**ynamic **A**ugmented **L**agrangian (DAL), of **F**luids with **I**mmersed (alternatively: **I**sogeometric) **Sh**ells (pronounced like "cuttlefish", an animal with an internal shell that lives immersed in fluid).  This module provides re-usable functionality for immersogeometric fluid--thin structure interaction analysis.  An isogeometric discretization of a thin shell, using [ShNAPr](https://github.com/david-kamensky/ShNAPr) is immersed into an unfitted finite element discretization of a fluid, using [FEniCS](https://fenicsproject.org/).  Examples provided in this repository use [VarMINT](https://github.com/david-kamensky/VarMINT) to define the fluid formulation, but this is not strictly necessary.  This module was written to support the following paper, submitted to a special issue on open-source software for partial differential equations:
+**Cou**pling, via **D**ynamic **A**ugmented **L**agrangian (DAL), of **F**luids with **I**mmersed (alternatively: **I**sogeometric) **Sh**ells (pronounced like "cuttlefish", an animal with an internal shell that lives immersed in fluid).  This module provides re-usable functionality for immersogeometric fluid--thin structure interaction analysis.  An isogeometric discretization of a thin shell, using [ShNAPr](https://github.com/david-kamensky/ShNAPr) is immersed into an unfitted finite element discretization of a fluid, using [FEniCS](https://fenicsproject.org/).  Examples provided in this repository use [VarMINT](https://github.com/david-kamensky/VarMINT) to define the fluid formulation, but this is not strictly necessary.  
+
+To install these modules, do the following: 
+```
+pip3 install git+https://github.com/MehdiSaraeian/CouDALFISh.git
+```
+
+This module was written to support the following paper, submitted to a special issue on open-source software for partial differential equations:
 ```
 @article{Kamensky2021,
 title = "Open-source immersogeometric analysis of fluid--structure interaction using {FEniCS} and {tIGAr}",
